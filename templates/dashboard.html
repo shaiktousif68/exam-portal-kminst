@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Kminst EP{% endblock %}
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-header">
+        <h1>Dashboard</h1>
+        {% if current_user.is_admin %}
+            <button class="btn btn-success" onclick="showCreateExamForm()">+ Create New Exam</button>
+        {% endif %}
+    </div>
+
+    <div class="card create-exam-card" id="createExamForm" style="display:none;">
+        <h2>Create New Exam</h2>
+        <form method="POST" action="{{ url_for('create_exam') }}">
+            <div class="form-group">
+                <label for="title">Exam Title</label>
+                <input type="text" id="title" name="title" placeholder="Enter exam title" required>
+            </div>
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" placeholder="Enter exam description" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="duration">Duration (minutes)</label>
+                <input type="number" id="duration" name="duration" value="30" min="1" max="180">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Create Exam</button>
+                <button type="button" class="btn btn-secondary" onclick="hideCreateExamForm()">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    {% if admin_view %}
+    <!-- Admin View -->
+    <div class="admin-stats">
+        <div class="stat-card">
+            <h3>{{ users|length }}</h3>
+            <p>Total Users</p>
+        </div>
+        <div class="stat-card">
+            <h3>{{ exams|length }}</h3>
+            <p>Total Exams</p>
+        </div>
+        <div class="stat-card">
+            <h3>{{ results|length }}</h3>
+            <p>Submissions</p>
+        </div>
+    </div>
+
+    <div class="admin-section">
+        <h2>Manage Exams</h2>
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Questions</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for exam in exams %}
+                    <tr>
+                        <td>{{ exam.id }}</td>
+                        <td>{{ exam.title }}</td>
+                        <td>{{ exam.questions|length }}</td>
+                        <td>{{ exam.duration_minutes }} min</td>
+                        <td>
+                            {% if exam.is_active %}
+                                <span class="badge badge-success">Active</span>
+                            {% else %}
+                                <span class="badge badge-danger">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="actions">
+                            <a href="{{ url_for('create_questions', exam_id=exam.id) }}" class="btn btn-sm btn-primary">Questions</a>
+                            <form method="POST" action="{{ url_for('toggle_exam', exam_id=exam.id) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm {% if exam.is_active %}btn-warning{% else %}btn-success{% endif %}">
+                                    {% if exam.is_active %}Deactivate{% else %}Activate{% endif %}
+                                </button>
+                            </form>
+                            <button type="button" class="btn btn-sm btn-danger" onclick="showDeletePopup('{{ exam.title }}', {{ exam.id }})">Delete</button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center">No exams created yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ===== STUDENT RESULTS TABLE (Admin) ===== -->
+    <div class="admin-section" style="margin-top: 40px;">
+        <h2>Student Results</h2>
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Student Name</th>
+                        <th>Exam Title</th>
+                        <th>Score</th>
+                        <th>Total</th>
+                        <th>Percentage</th>
+                        <th>Submitted</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for result in results_with_details %}
+                    <tr>
+                        <td><strong>{{ result.user.username }}</strong></td>
+                        <td>{{ result.exam.title }}</td>
+                        <td>{{ result.score }}</td>
+                        <td>{{ result.total_questions }}</td>
+                        <td>
+                            {% if result.percentage >= 80 %}
+                                <span class="badge badge-success">{{ result.percentage }}%</span>
+                            {% elif result.percentage >= 40 %}
+                                <span class="badge badge-warning">{{ result.percentage }}%</span>
+                            {% else %}
+                                <span class="badge badge-danger">{{ result.percentage }}%</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ result.submitted_at|ist }}</td>
+                        <td>
+                            <a href="{{ url_for('view_result', result_id=result.id) }}" class="btn btn-sm btn-primary">View</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center">No results submitted yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <!-- Student View -->
+    <div class="section">
+        <h2>Available Exams</h2>
+        <div class="exam-grid">
+            {% for exam in exams %}
+            <div class="exam-card">
+                <div class="exam-card-header">
+                    <h3>{{ exam.title }}</h3>
+                    <span class="exam-duration">{{ exam.duration_minutes }} min</span>
+                </div>
+                <p class="exam-description">{{ exam.description or 'No description provided.' }}</p>
+                <div class="exam-meta">
+                    <span>{{ exam.questions|length }} Questions</span>
+                </div>
+                {% set taken = namespace(value=false) %}
+                {% for r in user_results %}
+                    {% if r.exam_id == exam.id %}
+                        {% set taken.value = true %}
+                    {% endif %}
+                {% endfor %}
+                {% if taken.value %}
+                    <button class="btn btn-secondary" disabled>Completed</button>
+                {% else %}
+                    <a href="{{ url_for('take_exam', exam_id=exam.id) }}" class="btn btn-primary">Start Exam</a>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <p>No exams available at the moment. Check back later!</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Animated Delete Confirmation Popup -->
+<div class="delete-overlay hidden" id="deleteOverlay">
+    <div class="delete-popup" id="deletePopup">
+        <div class="delete-popup-icon">⚠️</div>
+        <h2>Delete Exam?</h2>
+        <p id="deletePopupText">Are you sure you want to delete "<span id="deleteExamName"></span>"?</p>
+        <p class="delete-warning-text">This action cannot be undone. All questions and results for this exam will be permanently removed.</p>
+        <div class="delete-popup-actions">
+            <form method="POST" id="deleteForm" action="">
+                <button type="submit" class="btn btn-danger" id="confirmDeleteBtn">Yes, Delete Exam</button>
+            </form>
+            <button type="button" class="btn btn-secondary" onclick="hideDeletePopup()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function showCreateExamForm() {
+    document.getElementById('createExamForm').style.display = 'block';
+}
+function hideCreateExamForm() {
+    document.getElementById('createExamForm').style.display = 'none';
+}
+
+function showDeletePopup(examTitle, examId) {
+    document.getElementById('deleteExamName').textContent = examTitle;
+    document.getElementById('deleteForm').action = '/admin/exam/' + examId + '/delete';
+    var overlay = document.getElementById('deleteOverlay');
+    var popup = document.getElementById('deletePopup');
+    overlay.classList.remove('hidden');
+    // Trigger animation
+    setTimeout(function() {
+        popup.classList.add('popup-visible');
+    }, 10);
+}
+
+function hideDeletePopup() {
+    var overlay = document.getElementById('deleteOverlay');
+    var popup = document.getElementById('deletePopup');
+    popup.classList.remove('popup-visible');
+    setTimeout(function() {
+        overlay.classList.add('hidden');
+    }, 300);
+}
+
+// Close popup on overlay click
+document.addEventListener('DOMContentLoaded', function() {
+    var overlay = document.getElementById('deleteOverlay');
+    if (overlay) {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) {
+                hideDeletePopup();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

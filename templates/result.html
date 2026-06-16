@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Exam Result - Kminst EP{% endblock %}
+{% block content %}
+<div class="result-container">
+    <div class="result-card">
+        <div class="result-header">
+            <h1>{{ result.exam.title }}</h1>
+            <p class="result-subtitle">Exam Result</p>
+        </div>
+
+        <div class="result-score-circle {% if result.percentage >= 70 %}score-pass{% elif result.percentage >= 40 %}score-average{% else %}score-fail{% endif %}">
+            <div class="score-value">{{ result.percentage }}%</div>
+            <div class="score-label">
+                {% if result.percentage >= 70 %}
+                    Excellent!
+                {% elif result.percentage >= 40 %}
+                    Good Effort!
+                {% else %}
+                    Needs Improvement
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="result-details">
+            <div class="result-detail-item">
+                <span class="detail-label">Score</span>
+                <span class="detail-value">{{ result.score }} / {{ result.total_questions }}</span>
+            </div>
+            <div class="result-detail-item">
+                <span class="detail-label">Correct Answers</span>
+                <span class="detail-value text-success">{{ result.score }}</span>
+            </div>
+            <div class="result-detail-item">
+                <span class="detail-label">Incorrect Answers</span>
+                <span class="detail-value text-danger">{{ result.total_questions - result.score }}</span>
+            </div>
+            <div class="result-detail-item">
+                <span class="detail-label">Submitted</span>
+                <span class="detail-value">{{ result.submitted_at|ist }}</span>
+            </div>
+        </div>
+
+        <div class="result-actions">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

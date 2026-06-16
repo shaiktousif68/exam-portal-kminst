@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Add Questions - {{ exam.title }}{% endblock %}
+{% block content %}
+<div class="questions-admin">
+    <div class="page-header">
+        <h1>Add Questions to: {{ exam.title }}</h1>
+        <a href="{{ url_for('admin_panel') }}" class="btn btn-secondary">Back to Admin Panel</a>
+    </div>
+
+    <div class="card">
+        <h2>Add New Question</h2>
+        <form method="POST" action="{{ url_for('create_questions', exam_id=exam.id) }}" class="question-form">
+            <div class="form-group">
+                <label for="question_text">Question Text</label>
+                <textarea id="question_text" name="question_text" rows="3" placeholder="Enter the question" required></textarea>
+            </div>
+
+            <div class="options-row">
+                <div class="form-group">
+                    <label for="option_a">Option A</label>
+                    <input type="text" id="option_a" name="option_a" placeholder="Option A" required>
+                </div>
+                <div class="form-group">
+                    <label for="option_b">Option B</label>
+                    <input type="text" id="option_b" name="option_b" placeholder="Option B" required>
+                </div>
+                <div class="form-group">
+                    <label for="option_c">Option C</label>
+                    <input type="text" id="option_c" name="option_c" placeholder="Option C" required>
+                </div>
+                <div class="form-group">
+                    <label for="option_d">Option D</label>
+                    <input type="text" id="option_d" name="option_d" placeholder="Option D" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="correct_option">Correct Option</label>
+                <select id="correct_option" name="correct_option" required>
+                    <option value="">-- Select Correct Answer --</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Add Question</button>
+        </form>
+    </div>
+
+    <div class="card questions-preview">
+        <h2>Existing Questions ({{ questions|length }})</h2>
+        {% if questions %}
+            <div class="questions-list-admin">
+                {% for q in questions %}
+                <div class="question-item">
+                    <div class="question-item-header">
+                        <span class="q-number">#{{ loop.index }}</span>
+                        <span class="q-correct">Correct: {{ q.correct_option }}</span>
+                    </div>
+                    <p class="q-text">{{ q.question_text }}</p>
+                    <div class="q-options">
+                        <span class="{% if q.correct_option == 'A' %}correct-option{% endif %}">A. {{ q.option_a }}</span>
+                        <span class="{% if q.correct_option == 'B' %}correct-option{% endif %}">B. {{ q.option_b }}</span>
+                        <span class="{% if q.correct_option == 'C' %}correct-option{% endif %}">C. {{ q.option_c }}</span>
+                        <span class="{% if q.correct_option == 'D' %}correct-option{% endif %}">D. {{ q.option_d }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted">No questions added yet. Use the form above to add questions.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

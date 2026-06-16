@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.title }} - Kminst EP{% endblock %}
+{% block content %}
+<div class="exam-container">
+    <div class="exam-header">
+        <h1>{{ exam.title }}</h1>
+        <div class="exam-info">
+            <span class="exam-timer" id="timer">{{ exam.duration_minutes }}:00</span>
+            <span class="exam-total-questions">{{ exam.questions|length }} Questions</span>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('submit_exam', exam_id=exam.id) }}" id="examForm">
+        <div id="tabWarning" class="tab-warning hidden">
+            <div class="tab-warning-content">
+                <span class="tab-warning-icon">⚠️</span>
+                <span class="tab-warning-text">Don't switch tabs! (<span id="tabCount">3</span> strikes left)</span>
+            </div>
+        </div>
+        <div class="questions-list">
+            {% for question in exam.questions %}
+            <div class="question-card" data-question-id="{{ question.id }}">
+                <div class="question-header">
+                    <span class="question-number">Question {{ loop.index }}</span>
+                    <span class="question-marks">1 mark</span>
+                </div>
+                <p class="question-text">{{ question.question_text }}</p>
+                <div class="options-list">
+                    <label class="option">
+                        <input type="radio" name="question_{{ question.id }}" value="A" required>
+                        <span class="option-letter">A</span>
+                        <span class="option-text">{{ question.option_a }}</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="question_{{ question.id }}" value="B">
+                        <span class="option-letter">B</span>
+                        <span class="option-text">{{ question.option_b }}</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="question_{{ question.id }}" value="C">
+                        <span class="option-letter">C</span>
+                        <span class="option-text">{{ question.option_c }}</span>
+                    </label>
+                    <label class="option">
+                        <input type="radio" name="question_{{ question.id }}" value="D">
+                        <span class="option-letter">D</span>
+                        <span class="option-text">{{ question.option_d }}</span>
+                    </label>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="exam-footer">
+            <button type="submit" class="btn btn-success btn-lg" onclick="return confirmSubmit()">
+                Submit Exam
+            </button>
+        </div>
+    </form>
+</div>
+
+<div id="autoSubmitOverlay" class="auto-submit-overlay hidden">
+    <div class="auto-submit-popup">
+        <div class="popup-icon">🚫</div>
+        <h2>Exam Auto-Submitted!</h2>
+        <p>You switched tabs multiple times. The exam has been submitted.</p>
+        <div class="popup-loader"></div>
+    </div>
+</div>
+
+<script>
+    let totalSeconds = {{ exam.duration_minutes }} * 60;
+    const timerElement = document.getElementById('timer');
+    const examForm = document.getElementById('examForm');
+
+    // ===== TAB SWITCH DETECTION =====
+    let tabSwitchCount = 0;
+    const maxTabSwitches = 3;
+    const tabWarning = document.getElementById('tabWarning');
+    const tabCountSpan = document.getElementById('tabCount');
+
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            tabSwitchCount++;
+            const remaining = maxTabSwitches - tabSwitchCount;
+            
+            if (tabCountSpan) tabCountSpan.textContent = remaining > 0 ? remaining : 0;
+            
+            if (tabWarning) {
+                tabWarning.classList.remove('hidden');
+                setTimeout(() => tabWarning.classList.add('hidden'), 3000);
+            }
+
+            if (tabSwitchCount >= maxTabSwitches) {
+                // Show auto-submit animation
+                document.getElementById('autoSubmitOverlay').classList.remove('hidden');
+                
+                // Submit the exam after a brief animation
+                setTimeout(function() {
+                    examForm.submit();
+                }, 2000);
+            }
+        }
+    });
+
+    // ===== TIMER =====
+    function updateTimer() {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+        if (totalSeconds <= 0) {
+            examForm.submit();
+        } else if (totalSeconds <= 60) {
+            timerElement.classList.add('timer-warning');
+        }
+
+        totalSeconds--;
+    }
+
+    function confirmSubmit() {
+        const answered = document.querySelectorAll('input[type="radio"]:checked').length;
+        const total = {{ exam.questions|length }};
+        const unanswered = total - answered;
+        if (unanswered > 0) {
+            return confirm(`You have ${unanswered} unanswered question(s). Are you sure you want to submit?`);
+        }
+        return confirm('Are you sure you want to submit the exam?');
+    }
+
+    setInterval(updateTimer, 1000);
+</script>
+{% endblock %}
