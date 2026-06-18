@@ -1,30 +1,20 @@
 import os
-try:
-    import certifi
-    ca_cert = f"&tlsCAFile={certifi.where()}"
-except ImportError:
-    ca_cert = ""
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'exam-portal-secret-key-2026'
+    SECRET_KEY = os.environ.get('SECRET_KEY')
 
-    MONGO_URI = os.environ.get('MONGO_URI') or (
-        f'mongodb+srv://shaiktousiff26_db_user:NTcRdQJXRAiJtpps@ecommerce.ljxphk0.mongodb.net/ecommerce?retryWrites=true&w=majority{ca_cert}'
-    )
-    # ==========================
-    # Gmail Email Configuration
-    # ==========================
+    MONGO_URI = os.environ.get('MONGO_URI')
+
     MAIL_SERVER = 'smtp.gmail.com'
     MAIL_PORT = 587
     MAIL_USE_TLS = True
     MAIL_USE_SSL = False
 
-    MAIL_USERNAME = 'shaiktousiff26@gmail.com'
-
-    # Replace with your 16-character Gmail App Password
-    MAIL_PASSWORD = 'xhbcgrklednposak'
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
 
     MAIL_DEFAULT_SENDER = (
         'Kminst EP',
-        'shaiktousiff26@gmail.com'
+        os.environ.get('MAIL_USERNAME')
     )
+    
