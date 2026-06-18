@@ -6,7 +6,7 @@
         <h1>{{ exam.title }}</h1>
         <div class="exam-info">
             <span class="exam-timer" id="timer">{{ exam.duration_minutes }}:00</span>
-            <span class="exam-total-questions">{{ exam.questions|length }} Questions</span>
+            <span class="exam-total-questions">{{ questions|length }} Questions</span>
         </div>
     </div>
 
@@ -17,44 +17,80 @@
                 <span class="tab-warning-text">Don't switch tabs! (<span id="tabCount">3</span> strikes left)</span>
             </div>
         </div>
-        <div class="questions-list">
-            {% for question in exam.questions %}
-            <div class="question-card" data-question-id="{{ question.id }}">
-                <div class="question-header">
-                    <span class="question-number">Question {{ loop.index }}</span>
-                    <span class="question-marks">1 mark</span>
-                </div>
-                <p class="question-text">{{ question.question_text }}</p>
-                <div class="options-list">
-                    <label class="option">
-                        <input type="radio" name="question_{{ question.id }}" value="A" required>
-                        <span class="option-letter">A</span>
-                        <span class="option-text">{{ question.option_a }}</span>
-                    </label>
-                    <label class="option">
-                        <input type="radio" name="question_{{ question.id }}" value="B">
-                        <span class="option-letter">B</span>
-                        <span class="option-text">{{ question.option_b }}</span>
-                    </label>
-                    <label class="option">
-                        <input type="radio" name="question_{{ question.id }}" value="C">
-                        <span class="option-letter">C</span>
-                        <span class="option-text">{{ question.option_c }}</span>
-                    </label>
-                    <label class="option">
-                        <input type="radio" name="question_{{ question.id }}" value="D">
-                        <span class="option-letter">D</span>
-                        <span class="option-text">{{ question.option_d }}</span>
-                    </label>
-                </div>
+
+        <!-- Question Navigation Bar -->
+        <div class="question-nav">
+            <div class="question-nav-header">
+                <span>Question Palette</span>
+                <span class="nav-stats">
+                    <span class="nav-stat answered">0 Answered</span>
+                    <span class="nav-stat skipped">0 Skipped</span>
+                    <span class="nav-stat unanswered">{{ questions|length }} Remaining</span>
+                </span>
             </div>
-            {% endfor %}
+            <div class="question-bubbles">
+                {% for question in questions %}
+                <button type="button" class="q-bubble" data-q="{{ loop.index0 }}" onclick="goToQuestion({{ loop.index0 }})">
+                    {{ loop.index }}
+                </button>
+                {% endfor %}
+            </div>
         </div>
 
-        <div class="exam-footer">
-            <button type="submit" class="btn btn-success btn-lg" onclick="return confirmSubmit()">
-                Submit Exam
-            </button>
+        <div class="exam-body">
+            <!-- Questions List (one at a time) -->
+            <div class="questions-list">
+                {% for question in questions %}
+                <div class="question-card" data-question-id="{{ question.id }}" data-q-index="{{ loop.index0 }}" {% if loop.index0 != 0 %}style="display:none;"{% endif %}>
+                    <div class="question-header">
+                        <span class="question-number">Question {{ loop.index }} of {{ questions|length }}</span>
+                        <span class="question-marks">1 mark</span>
+                    </div>
+                    <p class="question-text">{{ question.question_text }}</p>
+                    <div class="options-list">
+                        <label class="option" onclick="selectOption(this, {{ loop.index0 }}, 'A')">
+                            <input type="radio" name="question_{{ question.id }}" value="A" onchange="markAnswered({{ loop.index0 }})">
+                            <span class="option-letter">A</span>
+                            <span class="option-text">{{ question.option_a }}</span>
+                        </label>
+                        <label class="option" onclick="selectOption(this, {{ loop.index0 }}, 'B')">
+                            <input type="radio" name="question_{{ question.id }}" value="B" onchange="markAnswered({{ loop.index0 }})">
+                            <span class="option-letter">B</span>
+                            <span class="option-text">{{ question.option_b }}</span>
+                        </label>
+                        <label class="option" onclick="selectOption(this, {{ loop.index0 }}, 'C')">
+                            <input type="radio" name="question_{{ question.id }}" value="C" onchange="markAnswered({{ loop.index0 }})">
+                            <span class="option-letter">C</span>
+                            <span class="option-text">{{ question.option_c }}</span>
+                        </label>
+                        <label class="option" onclick="selectOption(this, {{ loop.index0 }}, 'D')">
+                            <input type="radio" name="question_{{ question.id }}" value="D" onchange="markAnswered({{ loop.index0 }})">
+                            <span class="option-letter">D</span>
+                            <span class="option-text">{{ question.option_d }}</span>
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="question-nav-buttons">
+                <button type="button" class="btn btn-secondary" id="prevBtn" onclick="prevQuestion()" disabled>
+                    ⬅ Previous
+                </button>
+                <button type="button" class="btn btn-warning" id="skipBtn" onclick="skipQuestion()">
+                    Skip ➡
+                </button>
+                <button type="button" class="btn btn-primary" id="nextBtn" onclick="nextQuestion()">
+                    Next ➡
+                </button>
+            </div>
+
+            <div class="exam-footer">
+                <button type="submit" class="btn btn-success btn-lg" id="submitBtn" onclick="return confirmSubmit()">
+                    📝 Submit Exam
+                </button>
+            </div>
         </div>
     </form>
 </div>
@@ -69,9 +105,14 @@
 </div>
 
 <script>
+    // ===== STATE =====
     let totalSeconds = {{ exam.duration_minutes }} * 60;
     const timerElement = document.getElementById('timer');
     const examForm = document.getElementById('examForm');
+    const totalQuestions = {{ questions|length }};
+    let currentIndex = 0;
+    let questionStatus = new Array(totalQuestions).fill('unanswered');
+    // 'unanswered', 'answered', 'skipped'
 
     // ===== TAB SWITCH DETECTION =====
     let tabSwitchCount = 0;
@@ -92,16 +133,108 @@
             }
 
             if (tabSwitchCount >= maxTabSwitches) {
-                // Show auto-submit animation
                 document.getElementById('autoSubmitOverlay').classList.remove('hidden');
-                
-                // Submit the exam after a brief animation
                 setTimeout(function() {
                     examForm.submit();
                 }, 2000);
             }
         }
     });
+
+    // ===== QUESTION NAVIGATION =====
+    function showQuestion(index) {
+        // Hide all questions
+        document.querySelectorAll('.question-card').forEach(q => q.style.display = 'none');
+        // Show current question
+        const q = document.querySelector(`.question-card[data-q-index="${index}"]`);
+        if (q) q.style.display = 'block';
+        
+        currentIndex = index;
+        
+        // Update prev/next buttons
+        document.getElementById('prevBtn').disabled = (index === 0);
+        const nextBtn = document.getElementById('nextBtn');
+        if (index === totalQuestions - 1) {
+            nextBtn.style.display = 'none';
+            document.getElementById('skipBtn').style.display = 'none';
+        } else {
+            nextBtn.style.display = 'inline-flex';
+            document.getElementById('skipBtn').style.display = 'inline-flex';
+        }
+        
+        // Update bubble highlights
+        document.querySelectorAll('.q-bubble').forEach(b => b.classList.remove('active'));
+        const activeBubble = document.querySelector(`.q-bubble[data-q="${index}"]`);
+        if (activeBubble) activeBubble.classList.add('active');
+    }
+
+    function nextQuestion() {
+        if (currentIndex < totalQuestions - 1) {
+            showQuestion(currentIndex + 1);
+        }
+    }
+
+    function prevQuestion() {
+        if (currentIndex > 0) {
+            showQuestion(currentIndex - 1);
+        }
+    }
+
+    function goToQuestion(index) {
+        showQuestion(index);
+    }
+
+    function skipQuestion() {
+        if (currentIndex < totalQuestions - 1) {
+            markSkipped(currentIndex);
+            showQuestion(currentIndex + 1);
+        }
+    }
+
+    // ===== OPTION SELECTION =====
+    function selectOption(label, qIndex, value) {
+        // Unselect all options in this question
+        const parent = label.closest('.options-list');
+        parent.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+        // Select this option
+        label.classList.add('selected');
+        // Check the radio
+        const radio = label.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+        markAnswered(qIndex);
+    }
+
+    function markAnswered(qIndex) {
+        questionStatus[qIndex] = 'answered';
+        updateBubble(qIndex, 'answered');
+        updateStats();
+    }
+
+    function markSkipped(qIndex) {
+        if (questionStatus[qIndex] === 'unanswered') {
+            questionStatus[qIndex] = 'skipped';
+            updateBubble(qIndex, 'skipped');
+            updateStats();
+        }
+    }
+
+    function updateBubble(qIndex, status) {
+        const bubble = document.querySelector(`.q-bubble[data-q="${qIndex}"]`);
+        if (bubble) {
+            bubble.classList.remove('answered', 'skipped');
+            bubble.classList.add(status);
+        }
+    }
+
+    function updateStats() {
+        const answered = questionStatus.filter(s => s === 'answered').length;
+        const skipped = questionStatus.filter(s => s === 'skipped').length;
+        const unanswered = totalQuestions - answered - skipped;
+        
+        document.querySelector('.nav-stat.answered').textContent = answered + ' Answered';
+        document.querySelector('.nav-stat.skipped').textContent = skipped + ' Skipped';
+        document.querySelector('.nav-stat.unanswered').textContent = unanswered + ' Remaining';
+    }
 
     // ===== TIMER =====
     function updateTimer() {
@@ -119,15 +252,148 @@
     }
 
     function confirmSubmit() {
-        const answered = document.querySelectorAll('input[type="radio"]:checked').length;
-        const total = {{ exam.questions|length }};
-        const unanswered = total - answered;
+        const answered = questionStatus.filter(s => s === 'answered').length;
+        const skipped = questionStatus.filter(s => s === 'skipped').length;
+        const unanswered = totalQuestions - answered - skipped;
+        let msg = '';
         if (unanswered > 0) {
-            return confirm(`You have ${unanswered} unanswered question(s). Are you sure you want to submit?`);
+            msg = `Answered: ${answered} | Skipped: ${skipped} | Unanswered: ${unanswered}\n\n`;
+            msg += `You have ${unanswered} unanswered question(s). Are you sure you want to submit?`;
+        } else {
+            msg = `All ${totalQuestions} questions answered! Submit now?`;
         }
-        return confirm('Are you sure you want to submit the exam?');
+        return confirm(msg);
     }
 
+    // Init
+    showQuestion(0);
     setInterval(updateTimer, 1000);
 </script>
+
+<style>
+/* Question Navigation */
+.question-nav {
+    background: white;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.question-nav-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--gray-700);
+}
+
+.nav-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 0.75rem;
+}
+
+.nav-stat.answered { color: var(--success); }
+.nav-stat.skipped { color: var(--warning); }
+.nav-stat.unanswered { color: var(--gray-400); }
+
+.question-bubbles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.q-bubble {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--gray-200);
+    background: white;
+    color: var(--gray-600);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.q-bubble:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: scale(1.1);
+}
+
+.q-bubble.active {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.q-bubble.answered {
+    border-color: var(--success);
+    background: var(--success);
+    color: white;
+}
+
+.q-bubble.answered.active {
+    box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.3);
+}
+
+.q-bubble.skipped {
+    border-color: var(--warning);
+    background: var(--warning);
+    color: white;
+}
+
+.q-bubble.skipped.active {
+    box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.3);
+}
+
+/* Question Body */
+.exam-body {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.question-nav-buttons {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 20px;
+    padding: 16px 0;
+}
+
+.question-nav-buttons .btn {
+    min-width: 140px;
+}
+
+/* Selected Option */
+.option.selected {
+    border-color: var(--primary) !important;
+    background: var(--primary-light) !important;
+}
+
+.option.selected .option-letter {
+    background: var(--primary);
+    color: white;
+}
+
+.option.selected .option-text {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .question-nav-header { flex-direction: column; gap: 8px; }
+    .nav-stats { flex-wrap: wrap; justify-content: center; }
+    .question-bubbles { justify-content: center; }
+    .question-nav-buttons .btn { min-width: auto; padding: 8px 12px; font-size: 0.75rem; }
+}
+</style>
 {% endblock %}

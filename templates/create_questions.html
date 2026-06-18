@@ -7,8 +7,31 @@
         <a href="{{ url_for('admin_panel') }}" class="btn btn-secondary">Back to Admin Panel</a>
     </div>
 
+    <!-- ===== BULK IMPORT SECTION ===== -->
+    <div class="card bulk-import-card">
+        <h2>📋 Bulk Import Questions</h2>
+        <p class="text-muted" style="margin-bottom: 12px;">
+            Paste multiple questions at once. Each line = 1 question.<br>
+            <strong>Format:</strong> <code>Question text | Option A | Option B | Option C | Option D | Correct Answer (A/B/C/D)</code>
+        </p>
+        <div class="bulk-example" style="background: var(--gray-50); padding: 12px 16px; border-radius: var(--radius); margin-bottom: 16px; font-size: 0.8125rem; font-family: monospace; line-height: 1.8;">
+            <strong>Example (copy this format):</strong><br>
+            What is the capital of France? | Paris | London | Berlin | Madrid | A<br>
+            Which planet is known as Red Planet? | Venus | Mars | Jupiter | Saturn | B<br>
+            What is 2+2? | 3 | 4 | 5 | 6 | B
+        </div>
+        <form method="POST" action="{{ url_for('bulk_import_questions', exam_id=exam.id) }}" class="bulk-form">
+            <div class="form-group">
+                <label for="bulk_questions">Paste your questions here (one per line):</label>
+                <textarea id="bulk_questions" name="bulk_questions" rows="8" placeholder="Question | Option A | Option B | Option C | Option D | Correct" style="font-family: monospace; font-size: 0.875rem;"></textarea>
+            </div>
+            <button type="submit" class="btn btn-success">🚀 Import All Questions</button>
+        </form>
+    </div>
+
+    <!-- ===== SINGLE QUESTION FORM ===== -->
     <div class="card">
-        <h2>Add New Question</h2>
+        <h2>➕ Add Single Question</h2>
         <form method="POST" action="{{ url_for('create_questions', exam_id=exam.id) }}" class="question-form">
             <div class="form-group">
                 <label for="question_text">Question Text</label>
@@ -49,6 +72,7 @@
         </form>
     </div>
 
+    <!-- ===== EXISTING QUESTIONS ===== -->
     <div class="card questions-preview">
         <h2>Existing Questions ({{ questions|length }})</h2>
         {% if questions %}
@@ -70,8 +94,28 @@
                 {% endfor %}
             </div>
         {% else %}
-            <p class="text-muted">No questions added yet. Use the form above to add questions.</p>
+            <p class="text-muted">No questions added yet. Use the form above or bulk import to add questions.</p>
         {% endif %}
     </div>
 </div>
+
+<style>
+.bulk-import-card {
+    border: 2px dashed var(--primary);
+    background: linear-gradient(135deg, #fafafe, #eef2ff);
+}
+.bulk-import-card h2 {
+    color: var(--primary);
+}
+.bulk-import-card code {
+    background: var(--gray-200);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8125rem;
+}
+.bulk-import-card .btn-success {
+    font-size: 1rem;
+    padding: 12px 24px;
+}
+</style>
 {% endblock %}

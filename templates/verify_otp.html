@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Verify OTP - Kminst EP{% endblock %}
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1>📨 Verify OTP</h1>
+            <p>Enter the 6-digit code sent to <strong>{{ email }}</strong></p>
+        </div>
+        <form method="POST" action="{{ url_for('verify_otp') }}" class="auth-form">
+            <input type="hidden" name="email" value="{{ email }}">
+            <div class="form-group">
+                <label for="otp">OTP Code</label>
+                <input type="text" id="otp" name="otp" placeholder="Enter 6-digit OTP" maxlength="6" required
+                       style="text-align: center; font-size: 1.5rem; letter-spacing: 8px; font-weight: 700;">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">✅ Verify OTP</button>
+        </form>
+        <div class="auth-footer">
+            <p>Didn't receive? <a href="{{ url_for('forgot_password') }}">Resend OTP</a></p>
+            <p><a href="{{ url_for('login') }}">← Back to Login</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

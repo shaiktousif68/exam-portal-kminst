@@ -1,25 +1,7 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.egg-info/
-dist/
-build/
-
-# Flask / SQLite
-instance/
-*.db
-*.sqlite
-
-# Environment
-.env
 venv/
-.venv/
-
-# IDE
-.vscode/
-.idea/
-
-# OS
+__pycache__/
+*.pyc
+.env
 .DS_Store
-Thumbs.db
+instance/
+*.sqlite3

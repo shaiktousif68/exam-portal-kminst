@@ -83,7 +83,7 @@
                                     {% if exam.is_active %}Deactivate{% else %}Activate{% endif %}
                                 </button>
                             </form>
-                            <button type="button" class="btn btn-sm btn-danger" onclick="showDeletePopup('{{ exam.title }}', {{ exam.id }})">Delete</button>
+                            <button type="button" class="btn btn-sm btn-danger" onclick="showDeletePopup('{{ exam.title }}', '{{ exam.id }}')">Delete</button>
                         </td>
                     </tr>
                     {% else %}
