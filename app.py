@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta
 import random
+import traceback
 import pytz
 from bson import ObjectId
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, session
+from werkzeug.exceptions import HTTPException
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_mail import Mail, Message
 from config import Config
@@ -281,6 +284,10 @@ def verify_otp():
     
     # OTP verified - proceed to reset password
     users_collection.update_one({'_id': user_data['_id']}, {'$unset': {'reset_otp': '', 'reset_otp_expiry': ''}})
+    
+    # Mark this specific email as verified in the user's session
+    session['verified_reset_email'] = email
+    
     flash('✅ OTP verified! Please set your new password.', 'success')
     return render_template('reset_password.html', email=email)
 
@@ -293,6 +300,11 @@ def reset_password():
     
     if not email or not new_password:
         flash('Missing fields.', 'danger')
+        return redirect(url_for('forgot_password'))
+        
+    # SECURITY CHECK: Ensure they actually verified the OTP for this email
+    if session.get('verified_reset_email') != email:
+        flash('Unauthorized request. Please verify your OTP first.', 'danger')
         return redirect(url_for('forgot_password'))
     
     if new_password != confirm_password:
@@ -316,6 +328,9 @@ def reset_password():
         {'_id': user_data['_id']},
         {'$set': {'password_hash': new_hash}}
     )
+    
+    # Clear the session token so it can't be reused
+    session.pop('verified_reset_email', None)
     
     flash('✅ Password reset successfully! You can now login with your new password.', 'success')
     return redirect(url_for('login'))
@@ -344,6 +359,52 @@ def dashboard():
     user_results = [Result(rd) for rd in user_results_data]
 
     return render_template('dashboard.html', exams=exams, user_results=user_results)
+
+
+# ===== USER PROFILE =====
+
+@app.route('/profile')
+@login_required
+def profile():
+    results_collection = get_results_collection()
+    user_results = list(results_collection.find({'user_id': current_user.id}))
+    
+    total_exams = len(user_results)
+    average_score = 0
+    
+    if total_exams > 0:
+        total_percentage = sum(r.get('percentage', 0) for r in user_results)
+        average_score = round(total_percentage / total_exams, 2)
+        
+    return render_template('profile.html', total_exams=total_exams, average_score=average_score)
+
+
+@app.route('/profile/change-password', methods=['POST'])
+@login_required
+def change_password():
+    current_password = request.form.get('current_password')
+    new_password = request.form.get('new_password')
+    confirm_password = request.form.get('confirm_password')
+
+    if not current_user.check_password(current_password):
+        flash('Incorrect current password.', 'danger')
+        return redirect(url_for('profile'))
+
+    if new_password != confirm_password:
+        flash('New passwords do not match.', 'danger')
+        return redirect(url_for('profile'))
+
+    if len(new_password) < 4:
+        flash('New password must be at least 4 characters.', 'danger')
+        return redirect(url_for('profile'))
+
+    users_collection = get_users_collection()
+    users_collection.update_one(
+        {'_id': ObjectId(current_user.id)},
+        {'$set': {'password_hash': generate_password_hash(new_password)}}
+    )
+    flash('✅ Password updated successfully!', 'success')
+    return redirect(url_for('profile'))
 
 
 # ===== EXAM ROUTES =====
@@ -380,6 +441,9 @@ def take_exam(exam_id):
     # Attach questions to exam data so template can access exam.questions
     exam.exam_data['questions'] = questions
 
+    # === ANTI-CHEAT: Record start time in session ===
+    session[f'exam_start_{exam_id}'] = datetime.utcnow().timestamp()
+
     return render_template('exam.html', exam=exam, questions=questions)
 
 
@@ -404,10 +468,23 @@ def submit_exam(exam_id):
     score = 0
     total = len(questions)
 
-    for question in questions:
-        user_answer = request.form.get(f'question_{question.id}')
-        if user_answer and user_answer.upper() == question.correct_option:
-            score += 1
+    # === ANTI-CHEAT: Verify time taken ===
+    start_timestamp = session.get(f'exam_start_{exam_id}')
+    cheated = False
+    if start_timestamp:
+        elapsed_minutes = (datetime.utcnow().timestamp() - start_timestamp) / 60.0
+        # 2 minutes grace period for network delay
+        if elapsed_minutes > (exam_data.get('duration_minutes', 30) + 2):
+            cheated = True
+
+    if cheated:
+        score = 0
+        flash('⚠️ Exam automatically flagged. Time limit exceeded. Score has been set to 0.', 'danger')
+    else:
+        for question in questions:
+            user_answer = request.form.get(f'question_{question.id}')
+            if user_answer and user_answer.upper() == question.correct_option:
+                score += 1
 
     percentage = round((score / total) * 100, 2) if total > 0 else 0
 
@@ -422,11 +499,16 @@ def submit_exam(exam_id):
     }
     results_collection.insert_one(result_doc)
 
+    # Clear the session start time
+    session.pop(f'exam_start_{exam_id}', None)
+
     if current_user.is_admin:
-        flash(f'Exam submitted! You scored {score}/{total} ({percentage}%).', 'success')
+        if not cheated:
+            flash(f'Exam submitted! You scored {score}/{total} ({percentage}%).', 'success')
         return redirect(url_for('view_result', result_id=str(result_doc['_id'])))
     else:
-        flash('Exam submitted successfully!', 'success')
+        if not cheated:
+            flash('Exam submitted successfully!', 'success')
         return redirect(url_for('dashboard'))
 
 
@@ -507,7 +589,12 @@ def create_exam():
     if request.method == 'POST':
         title = request.form.get('title')
         description = request.form.get('description')
-        duration = request.form.get('duration', 30)
+        duration_raw = request.form.get('duration')
+
+        try:
+            duration = int(duration_raw) if duration_raw else 30
+        except ValueError:
+            duration = 30
 
         if not title:
             flash('Exam title is required.', 'danger')
@@ -652,6 +739,45 @@ def bulk_import_questions(exam_id):
     return redirect(url_for('create_questions', exam_id=exam_id))
 
 
+@app.route('/admin/exam/<exam_id>/question/<question_id>/edit', methods=['POST'])
+@login_required
+@admin_required
+def edit_question(exam_id, question_id):
+    question_text = request.form.get('question_text')
+    option_a = request.form.get('option_a')
+    option_b = request.form.get('option_b')
+    option_c = request.form.get('option_c')
+    option_d = request.form.get('option_d')
+    correct_option = request.form.get('correct_option', '').upper()
+
+    if not all([question_text, option_a, option_b, option_c, option_d, correct_option]):
+        flash('All fields are required for editing.', 'danger')
+        return redirect(url_for('create_questions', exam_id=exam_id))
+
+    get_questions_collection().update_one(
+        {'_id': ObjectId(question_id), 'exam_id': exam_id},
+        {'$set': {
+            'question_text': question_text,
+            'option_a': option_a,
+            'option_b': option_b,
+            'option_c': option_c,
+            'option_d': option_d,
+            'correct_option': correct_option
+        }}
+    )
+    flash('✅ Question updated successfully!', 'success')
+    return redirect(url_for('create_questions', exam_id=exam_id))
+
+
+@app.route('/admin/exam/<exam_id>/question/<question_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_question(exam_id, question_id):
+    get_questions_collection().delete_one({'_id': ObjectId(question_id), 'exam_id': exam_id})
+    flash('🗑️ Question deleted successfully.', 'success')
+    return redirect(url_for('create_questions', exam_id=exam_id))
+
+
 @app.route('/admin/exam/<exam_id>/delete', methods=['POST'])
 @login_required
 @admin_required
@@ -756,9 +882,18 @@ def not_found(e):
     return render_template('base.html', error='404 - Page Not Found'), 404
 
 
-@app.errorhandler(500)
-def server_error(e):
-    return render_template('base.html', error='500 - Internal Server Error'), 500
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Pass through standard HTTP errors (like 404, 401, etc.)
+    if isinstance(e, HTTPException):
+        return e
+        
+    # Log the full traceback to PythonAnywhere's error.log!
+    print("\n========== FLASK 500 ERROR CRASH LOG ==========")
+    print(traceback.format_exc())
+    print("===============================================\n")
+    
+    return render_template('base.html', error='500 - Internal Server Error. Please check the server error logs.'), 500
 
 
 if __name__ == '__main__':

@@ -1,12 +1,16 @@
 import os
+try:
+    import certifi
+    ca_cert = f"&tlsCAFile={certifi.where()}"
+except ImportError:
+    ca_cert = ""
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'exam-portal-secret-key-2026'
 
     MONGO_URI = os.environ.get('MONGO_URI') or (
-        'mongodb+srv://shaiktousiff26_db_user:NTcRdQJXRAiJtpps@ecommerce.ljxphk0.mongodb.net/exam_portal?retryWrites=true&w=majority'
+        f'mongodb+srv://shaiktousiff26_db_user:NTcRdQJXRAiJtpps@ecommerce.ljxphk0.mongodb.net/ecommerce?retryWrites=true&w=majority{ca_cert}'
     )
-
     # ==========================
     # Gmail Email Configuration
     # ==========================
